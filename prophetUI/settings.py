@@ -25,7 +25,7 @@ SECRET_KEY = '7#kbdtj+lkjmgd9(-%+xkmx^ee(^cj8l&c221nzp-vh0#%p0+2'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -37,6 +37,8 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'notifications',
+    'prophetcore',
 ]
 
 MIDDLEWARE = [
@@ -103,18 +105,40 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/3.0/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'zh-Hans' #'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = 'Asia/Shanghai' #'UTC'
 
 USE_I18N = True
 
 USE_L10N = True
 
-USE_TZ = True
+USE_TZ = False
+
+#USE_TZ = True
 
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.0/howto/static-files/
 
 STATIC_URL = '/static/'
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
+
+MEDIA_URL = '/media/'
+
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+
+AUTH_USER_MODEL = 'prophetcore.User'
+
+SOFT_DELELE = True
+
+COLOR_TAGS = True
+
+COLOR_FK_FIELD = True
+
+HIDDEN_COMMENT_NAVBAR = False
+
+CSRF_COOKIE_NAME = 'prophet_csrftoken'
+
+SESSION_COOKIE_NAME = 'prophet_sessionid'

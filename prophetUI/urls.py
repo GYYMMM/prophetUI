@@ -14,8 +14,12 @@ Including another URLconf
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
 from django.contrib import admin
-from django.urls import path
+from django.urls import include
+from django.conf.urls import url
+import notifications.urls
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    url(r'^admin/', admin.site.urls),
+    url(r'^', include('prophetcore.urls')),
+    url('^inbox/notifications/', include(notifications.urls, namespace='notifications')),
 ]
