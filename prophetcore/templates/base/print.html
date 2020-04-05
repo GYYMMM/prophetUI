@@ -71,7 +71,6 @@
                 <th>设备编号</th>
                 <th>设备SN号</th>
                 <th>设备IP地址</th>
-                <th>机柜编号</th>
                 <th width="6%">U数</th>
                 <th width="7%">U位</th>
             </tr>
@@ -84,7 +83,6 @@
             <td class="no-padding" style="word-break : break-all;">{{obj.name}}</td>
 	          <td class="no-padding" style="word-break : break-all;">{%if obj.sn|first == '_' %}无法查看{%else%}{{ obj.sn|upper }}{%endif%}</td>
             <td class="no-padding" style="word-break : break-all;">{{obj.ipaddr}}</td>
-            <td class="no-padding" style="word-break : break-all;">{{obj.rack.name}}</td>
             <td class="no-padding">{{obj.units.all.count}}</td>
             <td class="no-padding" style="word-break : break-all;">{{obj.get_units}}</td>
         </tr>

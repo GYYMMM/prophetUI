@@ -3,7 +3,6 @@ from __future__ import unicode_literals
 from django import template
 from django.utils.http import urlencode
 from django.utils.encoding import force_str
-from prophetcore.models import Rack
 
 register = template.Library()
 
@@ -21,12 +20,6 @@ def get_query_string(context, **kwargs):
         return '?%s' % urlencode(sorted(params.items()))
     else:
         return ''
-
-
-@register.inclusion_tag('rack/overview.html')
-def rack_overview(rack_id, obj_units):
-    units = Rack.objects.get(pk=int(rack_id)).units.order_by('-name')
-    return {'units': units, 'obj_units': obj_units}
 
 
 @register.inclusion_tag('user/config.html')

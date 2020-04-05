@@ -5,7 +5,7 @@
       <span> 新建{{meta.verbose_name}} </span>
     </h4>
 </div>
-<form action="{%url 'prophetcore:new' meta.model_name%}?rack_id={{request.GET.rack_id}}" method="POST" role="form" class="form-horizontal" id="{{meta.model_name}}-new">
+<form action="{%url 'prophetcore:new' meta.model_name%}" method="POST" role="form" class="form-horizontal" id="{{meta.model_name}}-new">
   <div class="box-body">
     {% csrf_token %}
     {% for hidden in form.hidden_fields %}

@@ -7,18 +7,8 @@ import re
 from django.db import models
 from django.utils.encoding import force_text
 from django.contrib.contenttypes.models import ContentType
-from prophetcore.models import Client, Syslog, User
+from prophetcore.models import Syslog, User
 from prophetcore.lib.utils import display_for_field
-
-
-def get_related_client_name(obj):
-    related_clients = []
-    for f in obj._meta.fields:
-        if f.related_model is Client or (
-                f.name == 'client' and isinstance(f, models.CharField)):
-            value = display_for_field(f.value_from_object(obj), f, html=False)
-            related_clients.append(value)
-    return '{}'.format(", ".join(c for c in list(set(related_clients))))
 
 
 def log_action(
@@ -28,7 +18,7 @@ def log_action(
     model = ContentType.objects.get_for_id(content_type_id).model_class()
     object = model.objects.get(pk=object_id)
     if related_client is None:
-        related_client = get_related_client_name(object) or '-'
+        related_client = '-'
     user = User.objects.get(pk=user_id)
     onidc_id = user.onidc_id
     log = Syslog.objects.create(
@@ -67,36 +57,36 @@ def get_dell_model(sn, model):
     return _model, _code
 
 
-def device_post_save(pk, first=False):
-    """
-    设备信息保存后需要自动更新该设备的相关信息.
-    """
-    from prophetcore.models import Device
-
-    # 获取设备信息
-    try:
-        obj = Device.objects.get(pk=pk)
-    except:
-        return
-
-    # 更新设备状态
-    if not obj.actived:
-        status = 'offline'
-    else:
-        if obj.move_history and obj.actived:
-            status = 'moved'
-        else:
-            status = 'online'
-    Device.objects.filter(pk=obj.pk).update(status=status)
-    '''
-    if obj.sn and obj.mark != 'CheckSuccess':
-        # Dell 设备
-        if len(obj.sn.strip()) == 7:
-            old_model = obj.model
-            new_model, code = get_dell_model(obj.sn, obj.model)
-            if code:
-                mark = 'CheckSuccess'
-            else:
-                mark = 'CheckFailure'
-    '''
-    return obj.status
+# def device_post_save(pk, first=False):
+#     """
+#     设备信息保存后需要自动更新该设备的相关信息.
+#     """
+#     from prophetcore.models import Device
+#
+#     # 获取设备信息
+#     try:
+#         obj = Device.objects.get(pk=pk)
+#     except:
+#         return
+#
+#     # 更新设备状态
+#     if not obj.actived:
+#         status = 'offline'
+#     else:
+#         if obj.move_history and obj.actived:
+#             status = 'moved'
+#         else:
+#             status = 'online'
+#     Device.objects.filter(pk=obj.pk).update(status=status)
+#     '''
+#     if obj.sn and obj.mark != 'CheckSuccess':
+#         # Dell 设备
+#         if len(obj.sn.strip()) == 7:
+#             old_model = obj.model
+#             new_model, code = get_dell_model(obj.sn, obj.model)
+#             if code:
+#                 mark = 'CheckSuccess'
+#             else:
+#                 mark = 'CheckFailure'
+#     '''
+#     return obj.status

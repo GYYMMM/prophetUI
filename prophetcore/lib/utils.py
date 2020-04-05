@@ -437,3 +437,117 @@ def get_file_mimetype(filepath):
         except:
             mime = ext = None
     return (mime, ext)
+
+class SpooledFile:
+
+    def __init__(self, finame, max_size=0, mode='w+b', buffering=-1,
+                 encoding=None, newline=None,
+                 suffix=None, prefix=None, dir=None):
+        self._file = open(finame,mode = mode, encoding = encoding)
+        self._max_size = max_size
+
+    def _check(self, file):
+        max_size = self._max_size
+        if max_size and file.tell() > max_size:
+            self.rollover()
+
+    def rollover(self):
+        self._file.seek(0)
+        self._file.truncate()
+
+    # Context management protocol
+    def __enter__(self):
+        if self._file.closed:
+            raise ValueError("Cannot enter context with closed file")
+        return self
+
+    def __exit__(self, exc, value, tb):
+        self._file.close()
+
+    # file protocol
+    def __iter__(self):
+        return self._file.__iter__()
+
+    def close(self):
+        self._file.close()
+
+    @property
+    def closed(self):
+        return self._file.closed
+
+    @property
+    def encoding(self):
+        try:
+            return self._file.encoding
+        except AttributeError:
+            pass
+
+    def fileno(self):
+        self.rollover()
+        return self._file.fileno()
+
+    def flush(self):
+        self._file.flush()
+
+    def isatty(self):
+        return self._file.isatty()
+
+    @property
+    def mode(self):
+        try:
+            return self._file.mode
+        except AttributeError:
+            pass
+
+    @property
+    def name(self):
+        try:
+            return self._file.name
+        except AttributeError:
+            return None
+
+    @property
+    def newlines(self):
+        try:
+            return self._file.newlines
+        except AttributeError:
+            pass
+
+    def read(self, *args):
+        return self._file.read(*args)
+
+    def readline(self, *args):
+        return self._file.readline(*args)
+
+    def readlines(self, *args):
+        return self._file.readlines(*args)
+
+    def seek(self, *args):
+        self._file.seek(*args)
+
+    @property
+    def softspace(self):
+        return self._file.softspace
+
+    def tell(self):
+        return self._file.tell()
+
+    def truncate(self, size=None):
+        if size is None:
+            self._file.truncate()
+        else:
+            if size > self._max_size:
+                self.rollover()
+            self._file.truncate(size)
+
+    def write(self, s):
+        file = self._file
+        rv = file.write(s)
+        self._check(file)
+        return rv
+
+    def writelines(self, iterable):
+        file = self._file
+        rv = file.writelines(iterable)
+        self._check(file)
+        return rv

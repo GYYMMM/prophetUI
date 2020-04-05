@@ -8,9 +8,8 @@ from django.utils.text import get_text_list
 from django.utils.translation import ugettext_lazy as _
 from django.contrib.auth.forms import UserCreationForm
 from prophetcore.models import (
-    Option, Rack, Comment, User, Client, Device,
-    Idc, Testapply, Goods, Inventory, Jumpline,
-    Document, Configure, Rextend, Unit, Pdu
+    Option, Comment, User, Idc, Target,
+    Document, Configure
 )
 
 from prophetcore.lib.utils import can_create, shared_queryset
@@ -245,163 +244,6 @@ class IdcForm(FormBaseMixin, forms.ModelForm):
             )
 
 
-class ClientForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Client
-        fields = ['name', 'style', 'sales', 'kf', 'tags']
-
-
-class RackNewForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Rack
-        fields = [
-            'name', 'cname', 'zone', 'unitc', 'pduc',
-            'status', 'style','tags', 'actived'
-        ]
-
-    def __init__(self, *args, **kwargs):
-        super(RackNewForm, self).__init__(*args, **kwargs)
-        self.fields['actived'].initial = False
-        self.fields['actived'].widget = forms.HiddenInput()
-
-
-class RextendNewForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Rextend
-        fields = ['rack', 'client', 'ups1', 'ups2', 'temperature', 'humidity']
-
-    def __init__(self, rack_id=None, *args, **kwargs):
-        super(RextendNewForm, self).__init__(*args, **kwargs)
-        self.fields['rack'].widget = forms.HiddenInput()
-        self.fields['client'].widget = forms.HiddenInput()
-        if rack_id is not None:
-            self.fields['rack'].initial = self.fields['rack'].queryset.get(
-                pk=rack_id)
-            self.fields['client'].initial = self.fields['rack'].queryset.get(
-                pk=rack_id).client
-
-
-class UnitForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Unit
-        fields = ['rack', 'name']
-
-
-class PduForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Pdu
-        fields = ['rack', 'name']
-
-
-class RackEditForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Rack
-        fields = ['name', 'cname', 'zone', 'status', 'tags']
-
-
-class OnlineNewForm(CalendarMedia, FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Device
-        fields = [
-            'rack', 'client', 'created', 'style', 'name',
-            'ipaddr', 'model', 'sn', 'units', 'pdus', 'tags'
-        ]
-
-    def __init__(self, *args, **kwargs):
-        rack_id = kwargs.pop("rack_id", None)
-        super(OnlineNewForm, self).__init__(*args, **kwargs)
-        self.fields['rack'].empty_label = u'请选择一个机柜'
-        self.fields['rack'].queryset = self.fields['rack'].queryset.order_by(
-            'name')
-        if rack_id is None:
-            self.fields['client'].queryset = self.fields['client'].queryset.none()
-            self.fields['style'].queryset = self.fields['style'].queryset.none()
-            self.fields['units'].queryset = self.fields['units'].queryset.none()
-            self.fields['pdus'].queryset = self.fields['pdus'].queryset.none()
-            self.fields['tags'].queryset = self.fields['tags'].queryset.none()
-        else:
-            self.fields['style'].empty_label = None
-            rack = self.fields['rack'].queryset.get(pk=rack_id)
-            self.fields['rack'].initial = rack_id
-            try:
-                onidc_id = self.user.onidc_id
-                name = Device.objects.filter(
-                    onidc_id=onidc_id).order_by('-pk').first().name
-            except:
-                name = 'IS020123456-0000'
-            try:
-                pre, lnk, ext = name.rpartition('-')
-                ext = "%05d" % (int(ext) + 1)
-                self.fields['name'].initial = pre + lnk + ext
-            except:
-                self.fields['name'].initial = name
-            try:
-                self.fields['client'].initial = rack.client_id
-            except BaseException:
-                pass
-            self.fields['units'].queryset = self.fields['units'].queryset.filter(
-                rack_id=rack_id).order_by('name')
-            self.fields['pdus'].queryset = self.fields['pdus'].queryset.filter(
-                rack_id=rack_id).order_by('pk')
-
-
-class OnlineEditForm(CalendarMedia, FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Device
-        fields = [
-            'rack', 'client', 'style', 'ipaddr',
-            'name', 'sn', 'model',
-            'units', 'pdus', 'tags'
-        ]
-
-    def __init__(self, *args, **kwargs):
-        rack_id = kwargs.pop("rack_id", None)
-        super(OnlineEditForm, self).__init__(*args, **kwargs)
-        if not rack_id:
-            rack_id = self.instance.rack_id
-        self.fields['rack'].queryset = self.fields['rack'].queryset.order_by(
-            'name')
-        # rack = self.fields['rack'].queryset.get(pk=rack_id)
-        self.fields['units'].queryset = self.fields['units'].queryset.filter(
-            rack_id=rack_id) | self.instance.units.all()
-        self.fields['pdus'].queryset = self.fields['pdus'].queryset.filter(
-            rack_id=rack_id).order_by("pk") | self.instance.pdus.all()
-
-
-class TestapplyForm(CalendarMedia, FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Testapply
-        fields = [
-            'name', 'device', 'start_time', 'end_time', 'proposer', 'client',
-            'system', 'system_ip', 'system_pass', 'system_user', 'tags'
-        ]
-
-
-class GoodsForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Goods
-        fields = ['name', 'unit', 'brand', 'mark']
-
-
-class InventoryForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Inventory
-        fields = [
-            'goods', 'client', 'state', 'location',
-            'expressnum', 'amount', 'serials'
-        ]
-
-
-class JumplineForm(FormBaseMixin, forms.ModelForm):
-    class Meta:
-        model = Jumpline
-        fields = [
-            'linetype', 'netprod', 'bandwidth',
-            'sclient', 'slocation', 'sflag',
-            'dclient', 'dlocation', 'dflag', 'tags', 'route'
-        ]
-
-
 class CommentNewForm(FormBaseMixin, forms.ModelForm):
     class Meta:
         model = Comment
@@ -433,35 +275,6 @@ class ConfigureNewForm(FormBaseMixin, forms.ModelForm):
         fields = ['mark', 'content']
 
 
-class ZonemapNewForm(Select2Media, forms.Form):
-    zone_id = forms.IntegerField(required=True, widget=forms.HiddenInput())
-    rows = forms.IntegerField(
-        required=True, max_value=50, min_value=1, label="行数")
-    cols = forms.IntegerField(
-        required=True, max_value=50, min_value=1, label="列数")
-
-    def __init__(self, *args, **kwargs):
-        self.zone_id = kwargs.pop('zone_id', None)
-        super(ZonemapNewForm, self).__init__(*args, **kwargs)
-        if self.zone_id is not None:
-            from django.db.models import Max
-            from prophetcore.models import Zonemap
-            cells = Zonemap.objects.filter(zone_id=self.zone_id).order_by(
-                "row", "col").values("row", "col")
-            if cells.exists():
-                LAST_ROWS = cells.aggregate(Max('row'))['row__max']
-                LAST_COLS = cells.aggregate(Max('col'))['col__max']
-            else:
-                LAST_ROWS = LAST_COLS = 0
-            self.fields['zone_id'].initial = self.zone_id
-            self.fields['rows'].initial = LAST_ROWS + 1
-            self.fields['cols'].initial = LAST_COLS + 1
-            self.fields['rows'].help_text = "类似Excel表格,行列从0开始标记,当前已有 %s行" % (
-                LAST_ROWS+1)
-            self.fields['cols'].help_text = "类似Excel表格,行列从0开始标记,当前已有 %s列" % (
-                LAST_COLS+1)
-
-
 class InitIdcForm(forms.ModelForm):
     class Meta:
         model = Idc
@@ -471,3 +284,26 @@ class InitIdcForm(forms.ModelForm):
         for field in self.fields:
             self.fields[field].widget.attrs.update(
                 {'autocomplete': "off", 'class': "form-control"})
+
+
+class TargetNewForm(CalendarMedia, FormBaseMixin, forms.ModelForm):
+    class Meta:
+        model = Target
+        fields = [
+            'name', 'binary', 'inputtype', 'cmdargs', 'targetargs','tags'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super(TargetNewForm, self).__init__(*args, **kwargs)
+        #self.fields['tags'].queryset = self.fields['tags'].queryset.none()
+
+
+class TargetEditForm(CalendarMedia, FormBaseMixin, forms.ModelForm):
+    class Meta:
+        model = Target
+        fields = [
+            'name', 'binary', 'inputtype', 'cmdargs', 'targetargs','tags'
+        ]
+
+    def __init__(self, *args, **kwargs):
+        super(TargetEditForm, self).__init__(*args, **kwargs)

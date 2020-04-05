@@ -19,7 +19,7 @@ from django.views.generic.edit import CreateView, UpdateView
 from prophetcore.models import User
 from prophetcore.mixins import BaseRequiredMixin, PostRedirect
 from prophetcore.lib.utils import make_dict, diff_dict, get_content_type_for_model
-from prophetcore.lib.tasks import log_action, device_post_save
+from prophetcore.lib.tasks import log_action
 
 
 class NewModelView(BaseRequiredMixin, PermissionRequiredMixin,
@@ -91,9 +91,9 @@ class NewModelView(BaseRequiredMixin, PermissionRequiredMixin,
             object_id=self.object.pk,
             action_flag="新增"
         )
-        if self.model_name == 'online':
-            verify = Thread(target=device_post_save, args=(self.object.pk,))
-            verify.start()
+        # if self.model_name == 'online':
+        #     verify = Thread(target=device_post_save, args=(self.object.pk,))
+        #     verify.start()
         if self.request.is_ajax():
             data = {
                 'message': "Successfully submitted form data.",
@@ -178,9 +178,9 @@ class EditModelView(BaseRequiredMixin, PermissionRequiredMixin,
             object_id=self.object.pk,
             action_flag="修改", message=message, content=content
         )
-        if self.model_name == 'online':
-            verify = Thread(target=device_post_save, args=(self.object.pk,))
-            verify.start()
+        # if self.model_name == 'online':
+        #     verify = Thread(target=device_post_save, args=(self.object.pk,))
+        #     verify.start()
         if self.request.is_ajax():
             data = {
                 'message': "Successfully submitted form data.",

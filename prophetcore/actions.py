@@ -5,45 +5,48 @@ import sys
 import copy
 import json
 import time
-
+import os,stat
+import zipfile
+import shutil
+import tempfile
 from functools import wraps
 
-import six
+import subprocess,psutil
+import signal
 from django.contrib import admin
 from django.conf import settings
+from io import BytesIO
 
 from django.contrib.admin.utils import get_deleted_objects
 
 from django.core.exceptions import PermissionDenied
+from wsgiref.util import FileWrapper
 from django.db import router
 from django.db.models import Sum
 from django.template.response import TemplateResponse
 from django.utils import timezone
+from django.http import HttpResponse, FileResponse
 from django.utils.encoding import force_text
 from django.forms.models import model_to_dict
 from notifications.signals import notify as notify_user
 
 from prophetcore.lib.tasks import log_action
 from prophetcore.lib.utils import (
-    diff_dict, get_content_type_for_model, shared_queryset
+    diff_dict, get_content_type_for_model, shared_queryset, SpooledFile
 )
 from prophetcore.mixins import system_menus
 from prophetcore.exports import make_to_excel
-from prophetcore.models import Comment, Online, Client, Option
+from prophetcore.models import Comment, Target, Option
+
 
 
 SOFT_DELELE = getattr(settings, 'SOFT_DELELE', False)
 
 general = ['download', 'actived', 'reactive', ]
-inventory = user = idc = unit = pdu = ['download']
-device = ['download', ]
-online = ['download', 'movedown']
-offline = ['download', 'removeup', 'delete']
-jumpline = client = ['download', 'actived', 'reactive', 'delete']
-inventory = ['download', 'outbound', 'reoutbound']
+user = idc = ['download']
+target = ['downloadfuzzingresult', 'startfuzzing','stopfuzzing', 'getfuzzingstatus' ,'delete']
 syslog = ['download', 'actived']
 comment = ['download', 'actived', 'delete']
-rack = ['download', 'release', 'distribution']
 
 
 def check_multiple_clients(func):
@@ -94,6 +97,173 @@ download.icon = 'fa fa-download'
 download.required = 'exports'
 
 
+def downloadfuzzingresult(request, queryset):
+    #output = tempfile.NamedTemporaryFile(delete=False) #TemporaryFile()
+    #tempfile.SpooledTemporaryFile
+    output = BytesIO()
+    zipf = zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED)
+
+    for obj in queryset:
+        src_dir = os.path.join(settings.WORKING_ROOT, "fuzzer_out", obj.name)
+        pre_len = len(os.path.dirname(src_dir))
+        for parent, dirnames, filenames in os.walk(src_dir):
+            for filename in filenames:
+                pathfile = os.path.join(parent, filename)
+                arcname = pathfile[pre_len:].strip(os.path.sep)  # 相对路径
+                zipf.write(pathfile, arcname)
+        break
+    #zipf.setpassword(b"prophet")
+    zipf.close()
+    output.seek(0)
+    response = HttpResponse(output)
+    response['Content-Type'] = 'application/octet-stream'
+    response['Content-Disposition'] = 'attachment;filename="{}.tar.gz"'.format(obj.name)
+    return response
+    # output.close()
+    # file = open(output.name, 'rb')
+    # response = FileResponse(file)
+    # response['Content-Type'] = 'application/octet-stream'
+    # response['Content-Disposition'] = 'attachment;filename="{}.tar.gz"'.format(obj.name)
+    # return response
+
+downloadfuzzingresult.description = "导出"
+downloadfuzzingresult.icon = 'fa fa-download'
+downloadfuzzingresult.required = 'exports'
+
+
+def run_sh(cmd, **kwargs):
+    print("Executing: %s" % ' '.join(cmd))
+    return subprocess.Popen(cmd, **kwargs)
+
+
+@check_multiple_clients
+def startfuzzing(request, queryset):
+    action = sys._getframe().f_code.co_name
+    action_name = "开始"
+    if not os.path.exists(settings.WORKING_ROOT):
+        try:
+            os.mkdir(settings.WORKING_ROOT)
+            os.mkdir(os.path.join(settings.WORKING_ROOT, "fuzzer_in"))
+            os.mkdir(os.path.join(settings.WORKING_ROOT, "fuzzer_out"))
+        except:
+            pass
+    if request.POST.get('post'):
+        for obj in queryset:
+            o = copy.deepcopy(obj)
+            obj.actived = True
+            b_path = os.path.join(settings.BASE_DIR, obj.binary[1:])
+            os.chmod(b_path,stat.S_IXUSR |stat.S_IRUSR |stat.S_IWUSR | stat.S_IWGRP | stat.S_IRGRP | stat.S_IXOTH | stat.S_IROTH | stat.S_IWOTH)
+            cmd = [sys.executable, os.path.join(settings.BASE_DIR, "workingFuzzer.py"),
+                   os.path.join(settings.WORKING_ROOT, "fuzzer_in"),
+                   os.path.join(settings.WORKING_ROOT, "fuzzer_out", obj.name)]
+            cmd += obj.cmdargs.split(" ")
+            cmd += [b_path, "--", obj.targetargs]
+            if not os.path.exists(os.path.join(settings.WORKING_ROOT, "fuzzer_out", obj.name)):
+                try:
+                    os.mkdir(os.path.join(settings.WORKING_ROOT, "fuzzer_out", obj.name))
+                except:
+                    pass
+            #file_output = open(os.path.join(settings.WORKING_ROOT, "fuzzer_out", obj.name, "ui.log"), "w")
+            file_output = SpooledFile(os.path.join(settings.WORKING_ROOT, "fuzzer_out", obj.name, "ui.log"), mode="w", max_size=100*1024)
+            p = run_sh(cmd,stdin=subprocess.PIPE, stdout=file_output, stderr=subprocess.PIPE, cwd=settings.BASE_DIR)
+            obj.runningpid = p.pid
+
+            obj.save()
+            diffs = diff_dict(model_to_dict(o), model_to_dict(obj))
+            log_action(
+                user_id=request.user.pk,
+                content_type_id=get_content_type_for_model(obj, True).pk,
+                object_id=obj.pk,
+                action_flag="开始",
+                message=json.dumps(list(diffs.keys())),
+                content=json.dumps(diffs)
+            )
+
+        return None
+    context = construct_context(request, queryset, action, action_name)
+    return TemplateResponse(request, 'base/base_confirmation.html', context)
+
+
+startfuzzing.description = "开始"
+startfuzzing.icon = 'fa fa-check-circle-o'
+
+def kill_all_process(pid):
+    proc = psutil.Process(pid)
+    procs = proc.children(recursive=True)
+    procs.append(proc)
+    for proc in procs:
+        try:
+            proc.send_signal(signal.SIGINT)
+            time.sleep(2)
+        except:
+            pass
+    for proc in procs:
+        try:
+            proc.terminate()
+        except:
+            pass
+    gone, alive = psutil.wait_procs(procs, timeout=1)
+    for p in alive:
+        try:
+            p.kill()
+        except:
+            pass
+
+@check_multiple_clients
+def stopfuzzing(request, queryset):
+    action = sys._getframe().f_code.co_name
+    action_name = "停止"
+    if request.POST.get('post'):
+        for obj in queryset:
+            o = copy.deepcopy(obj)
+            try:
+                #os.kill(int(obj.runningpid), signal.SIGKILL)
+                obj.actived = False
+                kill_all_process(int(obj.runningpid))
+                obj.runningpid = ""
+            except Exception as e:
+                print(e)
+
+            obj.save()
+            diffs = diff_dict(model_to_dict(o), model_to_dict(obj))
+            log_action(
+                user_id=request.user.pk,
+                content_type_id=get_content_type_for_model(obj, True).pk,
+                object_id=obj.pk,
+                action_flag="停止",
+                message=json.dumps(list(diffs.keys())),
+                content=json.dumps(diffs)
+            )
+        return None
+    context = construct_context(request, queryset, action, action_name)
+    return TemplateResponse(request, 'base/base_confirmation.html', context)
+
+
+stopfuzzing.description = "停止"
+stopfuzzing.icon = 'fa fa-ban'
+
+
+@check_multiple_clients
+def getfuzzingstatus(request, queryset):
+    action = sys._getframe().f_code.co_name
+    action_name = "进度"
+    for obj in queryset:
+        p = subprocess.Popen('tail ' + os.path.join(settings.WORKING_ROOT, "fuzzer_out", obj.name, "ui.log") +' -n 40 | ./ansi2html.sh --bg=dark --body-only --palette=tango', shell=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        stdout, stderr = p.communicate()
+        _extra = dict(
+            content=stdout.decode(),
+            fuzzingname = obj.name
+        )
+        break
+    context = construct_context(request, queryset, action, action_name)
+    context.update(_extra)
+    return TemplateResponse(request, 'base/base_fuzzingstatus.html', context)
+
+
+getfuzzingstatus.description = "进度"
+getfuzzingstatus.icon = 'fa fa-spinner fa-spin'
+
 @check_multiple_clients
 def html_print(request, queryset):
     model = queryset.model
@@ -120,92 +290,6 @@ def html_print(request, queryset):
 html_print.description = "打印"
 html_print.icon = 'fa fa-print'
 download.required = 'view'
-
-
-@check_multiple_clients
-def removeup(request, queryset):
-    action = sys._getframe().f_code.co_name
-    action_name = "取消下架"
-    exclude = queryset.filter(rack__actived=False)
-    if exclude.exists():
-        mesg = "有设备所在机柜未使用, 无法取消下架"
-        return mesg
-
-    if request.POST.get('post'):
-        for obj in queryset:
-            o = copy.deepcopy(obj)
-            obj.actived = True
-            obj.status = 'online'
-            obj.operator = request.user
-            lastunits = copy.deepcopy(obj.units.all())
-            lastpdus = copy.deepcopy(obj.pdus.all())
-            ucan_recovery = False not in [u.actived for u in lastunits]
-            pcan_recovery = False not in [p.actived for p in lastpdus]
-            if ucan_recovery:
-                obj.units.all().update(actived=False, operator=obj.operator)
-            else:
-                verb = "无法恢复 {} 的U位".format(force_text(obj))
-                notify_user.send(
-                    request.user,
-                    recipient=request.user,
-                    target=obj,
-                    verb=verb,
-                )
-                obj.units.clear()
-            if pcan_recovery:
-                obj.pdus.all().update(actived=False, operator=obj.operator)
-            else:
-                obj.pdus.clear()
-            obj.save()
-            diffs = diff_dict(model_to_dict(o), model_to_dict(obj))
-            message = json.dumps(list(diffs.keys()))
-            old_units = [force_text(u) for u in lastunits]
-            old_pdus = [force_text(p) for p in lastpdus]
-            diffs.update({'last_units': old_units, 'last_pdus': old_pdus})
-            content = json.dumps(diffs)
-            log_action(
-                user_id=request.user.pk,
-                content_type_id=get_content_type_for_model(obj, True).pk,
-                object_id=obj.pk, action_flag=action_name,
-                message=message, content=content
-            )
-        return None
-    context = construct_context(request, queryset, action, action_name)
-    return TemplateResponse(request, 'base/base_confirmation.html', context)
-
-
-removeup.description = "取消下架"
-removeup.icon = 'fa fa-level-up'
-
-
-@check_multiple_clients
-def movedown(request, queryset):
-    action = sys._getframe().f_code.co_name
-    action_name = "下架"
-    if request.POST.get('post'):
-        for obj in queryset:
-            o = copy.deepcopy(obj)
-            obj.actived = False
-            obj.status = 'offline'
-            obj.operator = request.user
-            obj.units.all().update(actived=True, operator=obj.operator)
-            obj.pdus.all().update(actived=True, operator=obj.operator)
-            obj.save()
-            diffs = diff_dict(model_to_dict(o), model_to_dict(obj))
-            log_action(
-                user_id=request.user.pk,
-                content_type_id=get_content_type_for_model(obj, True).pk,
-                object_id=obj.pk, action_flag=action_name,
-                message=json.dumps(list(diffs.keys())),
-                content=json.dumps(diffs)
-            )
-        return None
-    context = construct_context(request, queryset, action, action_name)
-    return TemplateResponse(request, 'base/base_confirmation.html', context)
-
-
-movedown.description = "下架"
-movedown.icon = 'fa fa-level-down'
 
 
 @check_multiple_clients
@@ -414,121 +498,6 @@ def reoutbound(request, queryset):
 
 reoutbound.description = "取消出库"
 reoutbound.icon = 'fa fa-undo'
-
-
-@check_multiple_clients
-def release(request, queryset):
-    action = sys._getframe().f_code.co_name
-    action_name = "释放机柜"
-    rack_ids = [id for id in queryset.values_list('id', flat=True)]
-    # fix: unknown your action: The QuerySet value
-    if Online.objects.filter(rack_id__in=rack_ids).exists():
-        mesg = "选择的机柜中仍有在线设备，无法释放"
-        return mesg
-
-    queryset = queryset.filter(actived=True)
-    if request.POST.get('post'):
-        for obj in queryset:
-            o = copy.deepcopy(obj)
-            if obj.client and obj.client.onlinenum() == 0:
-                verb = "客户 {} 没有在线设备, 是否终止".format(force_text(obj.client))
-                notify_user.send(
-                    request.user,
-                    recipient=request.user,
-                    target=obj,
-                    verb=verb,
-                )
-
-            obj.actived = False
-            obj.client = None
-            obj.cpower = 0
-            obj.style = None
-            obj.status = None
-            obj.operator = request.user
-            obj.tags.clear()
-
-            if obj.jnum() != 0:
-                verb = "机柜 {} 还有跳线存在, 请回收".format(force_text(obj))
-                notify_user.send(
-                    request.user,
-                    recipient=request.user,
-                    target=obj,
-                    verb=verb,
-                )
-
-            obj.save()
-            from prophetcore.lib.tasks import get_related_client_name
-            diffs = diff_dict(model_to_dict(o), model_to_dict(obj))
-            log_action(
-                user_id=request.user.pk,
-                content_type_id=get_content_type_for_model(obj, True).pk,
-                object_id=obj.pk,
-                action_flag=action_name,
-                message=json.dumps(list(diffs.keys())),
-                content=json.dumps(diffs),
-                related_client=get_related_client_name(o)
-            )
-        return None
-    context = construct_context(request, queryset, action, action_name)
-    return TemplateResponse(request, 'base/base_confirmation.html', context)
-
-
-release.description = "释放"
-release.icon = 'fa fa-recycle'
-
-
-@check_multiple_clients
-def distribution(request, queryset):
-    action = sys._getframe().f_code.co_name
-    action_name = "分配机柜"
-    queryset = queryset.filter(actived=False)
-    onidc_id = request.user.onidc.id
-    options = Option.objects.filter(actived=True)
-    clients = shared_queryset(Client.objects.filter(actived=True), onidc_id)
-    status = shared_queryset(options.filter(flag='Rack-Status'), onidc_id)
-    styles = shared_queryset(options.filter(flag='Rack-Style'), onidc_id)
-    if request.POST.get('post') and request.POST.getlist('items'):
-        def construct_item(index):
-            obj = queryset.get(pk=int(index))
-            try:
-                client = int(request.POST.get('client-' + str(index)))
-            except BaseException:
-                client = 0
-            status = int(request.POST.get('status-' + str(index)))
-            style = int(request.POST.get('style-' + str(index)))
-            cpower = request.POST.get('cpower-' + str(index))
-            comment = request.POST.get(('comment-' + index), None)
-            return obj, client, status, style, cpower, comment
-
-        for item in request.POST.getlist('items'):
-            obj, client, status, style, cpower, _comment = construct_item(item)
-            o = copy.deepcopy(obj)
-            if client != 0:
-                obj.client_id = client
-            obj.status_id = status
-            obj.style_id = style
-            obj.cpower = cpower
-            obj.actived = True
-            obj.save()
-            diffs = diff_dict(model_to_dict(o), model_to_dict(obj))
-            log_action(
-                user_id=request.user.pk,
-                content_type_id=get_content_type_for_model(obj, True).pk,
-                object_id=obj.pk,
-                action_flag=action_name,
-                message=json.dumps(list(diffs.keys())),
-                content=json.dumps(diffs)
-            )
-        return None
-
-    context = construct_context(request, queryset, action, action_name)
-    _extra = dict(clients=clients, status=status, styles=styles)
-    context.update(_extra)
-    return TemplateResponse(request, 'rack/distribution.html', context)
-
-
-distribution.description = "分配"
-distribution.icon = 'fa fa-puzzle-piece'
 
 
 def delete(request, queryset):

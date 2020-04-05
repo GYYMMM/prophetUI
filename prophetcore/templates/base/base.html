@@ -33,7 +33,7 @@
   <header class="main-header no-print">
   {% block main-header %}
     <a href="{% url 'prophetcore:index' %}" class="logo">
-      <span class="logo-mini"><b>i</b>OPS</span>
+      <span class="logo-mini">XZ</span>
       <span class="logo-lg"><b>prophetcore </b> {{meta.logo}}</span>
     </a>
     <nav class="navbar navbar-static-top" role="navigation">
@@ -118,7 +118,7 @@
   <footer class="main-footer no-print">
     {% block mian-footer %}
     <div class="pull-right hidden-xs">{{request.user.onidc.duty}}电话: {{request.user.onidc.tel}}</div>
-    <strong>Copyright © 2016 - {%now 'Y'%}<a target="_blank" href="http://www.iloxp.com/"> prophetcore</a>.</strong> All rights reserved.
+    <strong>Copyright © 2020 - {%now 'Y'%}<a target="_blank" href="https://github.com/cherry-wb/">先知漏洞挖掘平台</a>.</strong> All rights reserved.
     {% endblock %}
   </footer>
 </div>
@@ -145,23 +145,23 @@ function getCookie(name){
 
 <script>
   var _hmt = _hmt || [];
-  (function() {
-    var hm = document.createElement("script");
-    hm.src = "https://hm.baidu.com/hm.js?3e305013576f9d990b402e2fa02f8e70";
-    var s = document.getElementsByTagName("script")[0]; 
-    s.parentNode.insertBefore(hm, s);
-  })();
+  // (function() {
+  //   var hm = document.createElement("script");
+  //   hm.src = "https://hm.baidu.com/hm.js?3e305013576f9d990b402e2fa02f8e70";
+  //   var s = document.getElementsByTagName("script")[0];
+  //   s.parentNode.insertBefore(hm, s);
+  // })();
   </script>
   
 <!-- Global site tag (gtag.js) - Google Analytics -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=UA-81350925-2"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
+<!--<script async src="https://www.googletagmanager.com/gtag/js?id=UA-81350925-2"></script>-->
+<!--<script>-->
+  <!--window.dataLayer = window.dataLayer || [];-->
+  <!--function gtag(){dataLayer.push(arguments);}-->
+  <!--gtag('js', new Date());-->
 
-  gtag('config', 'UA-81350925-2');
-</script>
+  <!--gtag('config', 'UA-81350925-2');-->
+<!--</script>-->
   
 </body>
 </html>

@@ -27,7 +27,6 @@ urlpatterns = [
     url(r'^$', views.IndexView.as_view(), name='index'),
     url(r'^accounts/', include(accounts_urls)),
     url(r'^welcome/', views.welcome, name='welcome'),
-    url(r'^list/zonemap/', views.ZonemapView.as_view(), name='zonemap'),
     url(r'^(?:new/(?P<model>\w+))/$', NewModelView.as_view(), name='new'),
     url(r'^(?:list/(?P<model>\w+))/$', ListModelView.as_view(), name='list'),
     url(r'^(?:detail/(?:(?P<model>\w+)-(?P<pk>\d+)))/$', DetailModelView.as_view(), name='detail'),

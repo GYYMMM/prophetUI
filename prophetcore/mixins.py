@@ -78,7 +78,7 @@ class BaseRequiredMixin(LoginRequiredMixin):
             if idc.count() == 0 and request.user.is_superuser:
                 messages.info(
                     request,
-                    "您必须新建一个数据中心并将用户关联至此机房")
+                    "您必须新建一个先知节点并将用户关联至此机房")
                 return HttpResponseRedirect('/welcome/')
             return self.handle_no_permission()
         model = self.kwargs.get('model', None)

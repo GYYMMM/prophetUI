@@ -1,0 +1,174 @@
+{% extends 'base/new.html' %}
+{% load static app_extras %}
+{% block extra-css %}
+{{form.media.css}}
+{% endblock %}
+
+{%block form%}
+<form action="" method="POST" role="form" class="form" id="{{meta.model_name}}-new">
+  <div class="box-body">
+    {% csrf_token %}
+    {% for hidden in form.hidden_fields %}
+      {{ hidden }}
+    {% endfor %}
+    {% for field in form.visible_fields %}
+    <div class="form-group">
+      <label for="{{ field.id_for_label }}" class="col-sm-2 control-label">
+        {{ field.label }}
+      </label>
+      <div class="col-sm-5">
+      {{ field }}
+      </div>
+      <div class="col-sm-5 help-block">
+        {%if field.id_for_label == "id_binary" %}
+            <span class="text-red">必填</span>
+            <span class="btn-primary btn-sm margin-r-5"  id="drop">
+                将文件拖放到这里!
+            </span>
+        {%else%}
+        {%if field.field.required%}
+          <span class="text-red">必填</span>
+        {%else%}
+          <span class="text-muted">选填</span>
+        {%endif%}
+        {{ field.help_text|safe}}
+        <div class="text-red">{{ field.errors|safe }}</div>
+        {%endif%}
+      </div>
+    </div>
+    {% endfor %}
+
+    <div class="box-footer">
+      <button type="button" class="btn btn-default btn-sm" onclick="window.history.go(-1)">取消并返回</button>
+      <div class="pull-right">
+        <button type="submit" name="_saverlist" class="btn btn-primary btn-sm margin-r-5">保存</button>
+        <button type="submit" name="_addanother" class="btn btn-primary btn-sm margin-r-5">保存并新增</button>
+        <button type="submit" name="_saverview" class="btn btn-primary btn-sm">保存并查看</button>
+      </div>
+    </div>
+  </div>
+</form>
+{% endblock %}
+
+{% block extra-js %}
+{{form.media.js}}
+
+<script type="text/javascript">
+  $(document).ready(function() {
+    
+    function getCookie(name) {
+      var cookieValue = null;
+      if (document.cookie && document.cookie != '') {
+          var cookies = document.cookie.split(';');
+          for (var i = 0; i < cookies.length; i++) {
+              var cookie = jQuery.trim(cookies[i]);
+              // Does this cookie string begin with the name we want?
+              if (cookie.substring(0, name.length + 1) == (name + '=')) {
+                  cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                  break;
+              }
+          }
+      }
+      return cookieValue;
+    };
+
+    function uploadBinaryFile(file, i) {
+        try {
+          var form_data = new FormData();
+          //var csrftoken = getCookie('csrftoken');
+          var csrfmiddlewaretoken = $('form input[name="csrfmiddlewaretoken"]').val()
+          //form_data.append('csrftoken', csrftoken);
+          form_data.append("csrfmiddlewaretoken", csrfmiddlewaretoken);
+          form_data.append('files', file);
+          $.ajax({
+              data: form_data,
+              type: "POST",
+              url: "{%url 'prophetcore:upload' %}",
+              cache: false,
+              contentType: false,
+              processData: false,
+              success: function (data) {
+                $.each(data.files, function (index, file) {
+                  $("#id_binary")[0].value = file.url;
+                });
+              }
+          });
+        } catch (e) {
+            alert("Error:" + e);
+        }
+    }
+
+    function handleFiles(files) {
+       files = [...files]
+       files.forEach(uploadBinaryFile)
+    }
+
+    // Full Screen Drag & Drop File Upload
+    var lastTarget = null;
+    function isFile(evt) {
+       var dt = evt.dataTransfer;
+
+       for (var i = 0; i < dt.types.length; i++) {
+           if (dt.types[i] === "Files") {
+               return true;
+           }
+       }
+       return false;
+    }
+
+    window.addEventListener("dragenter", function (e) {
+       if (isFile(e)) {
+           lastTarget = e.target;
+           //document.querySelector("#textnode").style.fontSize = "48px";
+       }
+    });
+
+    window.addEventListener("dragleave", function (e) {
+       e.preventDefault();
+       if (e.target === document || e.target === lastTarget) {
+           //document.querySelector("#textnode").style.fontSize = "42px";
+       }
+    });
+
+    window.addEventListener("dragover", function (e) {
+       e.preventDefault();
+    });
+
+    window.addEventListener("drop", function (e) {
+       e.preventDefault();
+       //document.querySelector("#textnode").style.fontSize = "42px";
+       if(e.dataTransfer.files.length > 0)
+       {
+       handleFiles(e.dataTransfer.files);
+       }
+    });
+
+    // reset modal cache
+    $('body').on('hidden.bs.modal', '.modal', function () {
+        $(this).removeData('bs.modal');
+    });
+    // Select2
+    $("select").select2({language: "zh-CN"});
+    $(function() {
+        $("#to_shared").click(function(){
+            $(this).button('loading').delay(300).queue(function() {
+              $("#id_mark").val('shared');
+              $(this).button('complete');
+              $(this).removeClass('btn-info').addClass('btn-success');
+              $(this).button('reset').delay(300).dequeue();
+            });
+        });
+    });
+    var formSubmitted = false;
+    var oldFormData = $('form').serialize();
+    $("form").submit(function(e){
+      var newFormData = $('form').serialize();
+      if (oldFormData == newFormData){
+        alert("没有任何改变,已经阻止表单提交.");
+        return false;
+      }
+      formSubmitted = true;
+    });
+  });
+</script>
+{% endblock %}

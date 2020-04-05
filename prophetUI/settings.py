@@ -142,3 +142,7 @@ HIDDEN_COMMENT_NAVBAR = False
 CSRF_COOKIE_NAME = 'prophet_csrftoken'
 
 SESSION_COOKIE_NAME = 'prophet_sessionid'
+
+WORKING_URL = '/working/'
+
+WORKING_ROOT = os.path.join(BASE_DIR, 'working')
